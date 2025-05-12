@@ -45,18 +45,26 @@ public class CostService(IConfiguration configuration, ILogger<CostService> logg
 
         _logger.LogInformation(queryResult.ToString());
 
+        if (_logger.IsEnabled(LogLevel.Debug))
+        {
+            var message = "Available columns: ";
+
         foreach (var col in queryResult.Value.Columns)
         {
-            _logger.LogInformation($"Column: {col.Name}");
+                message += $"{col.Name}, ";
         }
 
         foreach (var row in queryResult.Value.Rows)
         {
-            var str = "";
+                message = string.Empty;
 
             for (var i = 0; i < queryResult.Value.Columns.Count; i++)
             {
-                str += $"{queryResult.Value.Columns[i].Name}: {row[i].ToString()} ";
+                    message += $"{queryResult.Value.Columns[i].Name}: {row[i].ToString()} ";
+                }
+
+                _logger.LogDebug(message);
+            }
             }
 
             _logger.LogInformation(str);
