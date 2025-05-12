@@ -41,6 +41,8 @@ public class CostService(IConfiguration configuration, ILogger<CostService> logg
 
         query.TimePeriod = new QueryTimePeriod(now.AddDays(-364), now);
 
+        _logger.LogInformation("Executing cost management api query");
+
         var queryResult = _armClient.UsageQuery(sub, query);
 
         _logger.LogInformation(queryResult.ToString());
@@ -67,7 +69,9 @@ public class CostService(IConfiguration configuration, ILogger<CostService> logg
             }
             }
 
-            _logger.LogInformation(str);
+        if (queryResult.Value.NextLink != null)
+        {
+            _logger.LogWarning("An additional page was found, but was not included in the dataset");
         }
     }
 
