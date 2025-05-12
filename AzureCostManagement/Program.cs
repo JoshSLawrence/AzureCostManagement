@@ -19,8 +19,11 @@ public class Program
         };
         var credential = new DefaultAzureCredential(options);
         var host = HostBuilder(args, credential).Build();
-        var worker = ActivatorUtilities.CreateInstance<Worker>(host.Services);
-        worker.Run();
+        using (var scope = host.Services.CreateScope())
+        {
+            var worker = ActivatorUtilities.CreateInstance<Worker>(scope.ServiceProvider);
+            worker.Run();
+        }
     }
 
     public static IHostBuilder HostBuilder(string[] args, DefaultAzureCredential credential)
@@ -34,10 +37,10 @@ public class Program
 
             })
             .ConfigureServices((context, services) =>
-        {
-            services.AddScoped<IService, CostService>();
-            services.AddSingleton(new GraphServiceClient(credential));
-            services.AddSingleton(new ArmClient(credential));
-        });
+            {
+                services.AddScoped<IService, CostService>();
+                services.AddSingleton(new GraphServiceClient(credential));
+                services.AddSingleton(new ArmClient(credential));
+            });
     }
 }
