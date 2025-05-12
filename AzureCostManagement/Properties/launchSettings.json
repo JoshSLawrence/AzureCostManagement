@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "AzureCostManagement": {
+      "commandName": "Project",
+      "commandLineArgs": "--environment Development"
+    }
+  }
+}
