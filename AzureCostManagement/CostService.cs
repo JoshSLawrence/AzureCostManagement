@@ -51,23 +51,23 @@ public class CostService(IConfiguration configuration, ILogger<CostService> logg
         {
             var message = "Available columns: ";
 
-        foreach (var col in queryResult.Value.Columns)
-        {
+            foreach (var col in queryResult.Value.Columns)
+            {
                 message += $"{col.Name}, ";
-        }
+            }
 
-        foreach (var row in queryResult.Value.Rows)
-        {
+            foreach (var row in queryResult.Value.Rows)
+            {
                 message = string.Empty;
 
-            for (var i = 0; i < queryResult.Value.Columns.Count; i++)
-            {
+                for (var i = 0; i < queryResult.Value.Columns.Count; i++)
+                {
                     message += $"{queryResult.Value.Columns[i].Name}: {row[i].ToString()} ";
                 }
 
                 _logger.LogDebug(message);
             }
-            }
+        }
 
         if (queryResult.Value.NextLink != null)
         {
