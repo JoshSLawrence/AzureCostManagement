@@ -3,11 +3,7 @@ using Azure.Core;
 using Azure.ResourceManager;
 using Azure.ResourceManager.CostManagement;
 using Azure.ResourceManager.CostManagement.Models;
-using AzureCostManagement.Exceptions;
 using AzureCostManagement.Interfaces;
-using AzureCostManagement.Models;
-using CsvHelper;
-using CsvHelper.Configuration;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
@@ -18,7 +14,15 @@ public class CostService(IConfiguration configuration, ILogger<CostService> logg
     private readonly IConfiguration _configuration = configuration;
     private readonly ILogger _logger = logger;
     private readonly ArmClient _armClient = armClient;
-    private Dictionary<string, ResourceGroup> _resourceGroups = new();
+    //private Dictionary<string, ResourceGroup> _resourceGroups = [];
+
+    enum QueryResultSchema
+    {
+        PreTaxCostUSD,
+        CostUSD,
+        BillingMonth,
+        ResourceGroup,
+    }
 
     public void Start()
     {
@@ -32,12 +36,12 @@ public class CostService(IConfiguration configuration, ILogger<CostService> logg
             return;
         }
 
-        var query = QueryBuilder();
+        var query = BuildQuery();
 
         foreach (var sub in subscriptions)
         {
             var data = FetchData(sub, query);
-            ProcessData(sub, data);
+            //ProcessData(sub, data);
         }
     }
 
@@ -49,19 +53,22 @@ public class CostService(IConfiguration configuration, ILogger<CostService> logg
 
         Response<QueryResult>? queryResult = null;
 
-        for (var i = 0; i < 5; i++)
+        var maxRetries = 4;
+
+        for (var i = 1; i <= maxRetries; i++)
         {
             try
             {
                 queryResult = _armClient.UsageQuery(sub, query);
+                _logger.LogInformation(queryResult.ToString());
                 break;
             }
             catch (RequestFailedException error)
             {
-                if (error.ErrorCode == "429" && i < 4)
+                if (error.ErrorCode == "429" && i <= maxRetries)
                 {
-                    var sleep = Math.Pow(5000, (i + 1));
-                    _logger.LogWarning($"Requests are being throttled, retrying in {sleep} seconds");
+                    var sleep = Math.Pow(5000, i);
+                    _logger.LogWarning("Requests are being throttled, retrying in {sleep} seconds", sleep);
                     Thread.Sleep((int)sleep);
                 }
                 else if (error.ErrorCode == "429")
@@ -72,7 +79,7 @@ public class CostService(IConfiguration configuration, ILogger<CostService> logg
                 }
                 else
                 {
-                    _logger.LogError("An error occurred while executing the query: {0}", error.Message);
+                    _logger.LogError("An error occurred while executing the query: {error.Message}", error.Message);
                     throw new Exception("An error occurred while executing the query", error);
                 }
             }
@@ -90,31 +97,44 @@ public class CostService(IConfiguration configuration, ILogger<CostService> logg
             _logger.LogWarning("An additional page was found, but was not included in the dataset");
         }
 
-        if (!ValidateQueryResultSchema(queryResult.Value.Columns))
+        //if (!ValidateQueryResultSchema(queryResult.Value.Columns))
+        //{
+        //    var message = "Returned Columns:\n";
+
+        //    foreach (var column in queryResult.Value.Columns)
+        //        message += column.Name + "\n";
+
+        //    throw new InvalidQueryResultException(message);
+        //}
+
+        foreach (var c in queryResult.Value.Columns)
         {
-            var message = "Returned Columns:\n";
-
-            foreach (var column in queryResult.Value.Columns)
-                message += column.Name + "\n";
-
-            throw new InvalidQueryResultException(message);
+            _logger.LogInformation("Column Name: {0}, Type: {1}", c.Name, c.QueryColumnType);
         }
-
-        _logger.LogInformation(queryResult.ToString());
 
         return queryResult;
     }
 
-    private QueryDefinition QueryBuilder()
+    private static QueryDefinition BuildQuery()
     {
         var queryDataset = new QueryDataset()
         {
             Granularity = "Monthly"
         };
 
-        queryDataset.Aggregation.Add("preTax", new QueryAggregation("PreTaxCost", "Sum"));
-        queryDataset.Aggregation.Add("total", new QueryAggregation("CostUSD", "Sum"));
-        queryDataset.Grouping.Add(new QueryGrouping("Dimension", "ResourceGroup"));
+        //if (mode == "ResourceGroup")
+        //{
+        //    queryDataset.Grouping.Add(new QueryGrouping("Dimension", "ResourceGroup"));
+        //}
+
+        //queryDataset.Aggregation.Add("preTax", new QueryAggregation("PreTaxCost", "Sum"));
+        //queryDataset.Aggregation.Add("total", new QueryAggregation("Cost", "Sum"));
+
+        queryDataset.Columns.Add("CostCenter");
+        queryDataset.Columns.Add("SubscriptionGuid");
+        queryDataset.Columns.Add("SubscriptionName");
+        queryDataset.Columns.Add("ResourceGroup");
+        queryDataset.Columns.Add("CostInBillingCurrency");
 
         var query = new QueryDefinition(
             exportType: "Usage",
@@ -129,47 +149,29 @@ public class CostService(IConfiguration configuration, ILogger<CostService> logg
         return query;
     }
 
-    private void ProcessData(string sub, Response<QueryResult> queryResult)
-    {
-        foreach (var row in queryResult.Value.Rows)
-        {
-            var resourceGroupName = row[(int)QueryResultSchema.ResourceGroup].ToString();
+    //private void ProcessData(string sub, Response<QueryResult> queryResult)
+    //{
+    //    foreach (var row in queryResult.Value.Rows)
+    //    {
+    //        var resourceGroupName = row[(int)QueryResultSchema.ResourceGroup].ToString();
 
-            if (!_resourceGroups.ContainsKey(resourceGroupName))
-            {
-                var resourceGroup = new ResourceGroup(resourceGroupName, sub);
-                _resourceGroups.Add(resourceGroup.Name, resourceGroup);
-            }
+    //        if (!_resourceGroups.ContainsKey(resourceGroupName))
+    //        {
+    //            var resourceGroup = new ResourceGroup(resourceGroupName, sub);
+    //            _resourceGroups.Add(resourceGroup.Name, resourceGroup);
+    //        }
 
-            _resourceGroups[resourceGroupName].costSnapshots.Add(new CostSnapshot(
-                preTaxCost: double.Parse(row[(int)QueryResultSchema.PreTaxCost]),
-                totalCost: double.Parse(row[(int)QueryResultSchema.CostUSD]),
-                date: row[(int)QueryResultSchema.BillingMonth].ToString()
-            ));
-        }
+    //        _resourceGroups[resourceGroupName].CostSnapshots.Add(new CostSnapshot(
+    //            preTaxCostUSD: double.Parse(row[(int)QueryResultSchema.PreTaxCostUSD]),
+    //            costUSD: double.Parse(row[(int)QueryResultSchema.CostUSD]),
+    //            date: row[(int)QueryResultSchema.BillingMonth].ToString()
+    //        ));
+    //    }
 
-        var config = new CsvConfiguration(System.Globalization.CultureInfo.InvariantCulture)
-        {
-            NewLine = Environment.NewLine,
-        };
-
-
-        foreach (var group in _resourceGroups.Values)
-        {
-            group.ProcessAverage();
-            var message = string.Empty;
-            message += $"Resource Group: {group.Name}\n";
-            message += $"Average Cost PreTax: {group.AveragePreTaxCost}\n";
-            message += $"Average Cost Total: {group.AverageTotalCost}\n";
-            _logger.LogInformation(message);
-        }
-
-        using (var writer = new StreamWriter("./report.csv", false))
-        using (var csv = new CsvWriter(writer, System.Globalization.CultureInfo.InvariantCulture))
-        {
-            csv.WriteRecords(_resourceGroups.Values);
-        }
-    }
+    //    using var writer = new StreamWriter("./report.csv", false);
+    //    using var csv = new CsvWriter(writer, CultureInfo.InvariantCulture);
+    //    csv.WriteRecords(_resourceGroups.Values);
+    //}
 
     public void Stop()
     {
@@ -193,13 +195,5 @@ public class CostService(IConfiguration configuration, ILogger<CostService> logg
         }
 
         return true;
-    }
-
-    enum QueryResultSchema
-    {
-        PreTaxCost,
-        CostUSD,
-        BillingMonth,
-        ResourceGroup,
     }
 }

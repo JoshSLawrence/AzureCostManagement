@@ -1,33 +1,70 @@
-﻿using AzureCostManagement.Interfaces;
-using CsvHelper.Configuration.Attributes;
+﻿//using Azure;
+//using Azure.ResourceManager.CostManagement.Models;
+//using AzureCostManagement.Interfaces;
+//using CsvHelper.Configuration.Attributes;
+//using Microsoft.Extensions.Configuration;
+//using Microsoft.Extensions.Logging;
 
-namespace AzureCostManagement.Models;
+//namespace AzureCostManagement.Models;
 
-internal class ResourceGroup(string name, string subscriptionId) : ICostResource
-{
-    public string SubscriptionId { get; } = subscriptionId;
-    public string Name { get; } = name;
-    [Ignore]
-    public List<CostSnapshot> costSnapshots { get; set; } = [];
-    public double AveragePreTaxCost { get; private set; } = default;
-    public double AverageTotalCost { get; private set; } = default;
+//internal class ResourceGroup(IConfiguration configuration, ILogger<ResourceGroup> logger, string name, string subscriptionId) : ICostResource
+//{
+//    IConfiguration _configuration = configuration;
+//    ILogger<ResourceGroup> _logger = logger;
+//    public string Name { get; } = name;
+//    public string SubscriptionName { get; } = subscriptionId;
+//    public string SubscriptionId { get; } = subscriptionId;
+//    public double AveragePreTaxCost { get; private set; } = default;
+//    public double AverageCost { get; private set; } = default;
+//    public QueryDefinition Query { get; set; }
+//    [Ignore]
+//    public List<CostSnapshot> CostSnapshots { get; set; } = [];
 
-    public void ProcessAverage()
-    {
-        double preTaxTotal = default;
-        double total = default;
+//    enum QueryResultSchema
+//    {
+//        PreTaxCost,
+//        Cost,
+//        BillingMonth,
+//        ResourceGroup,
+//    }
 
-        for (var i = 0; i < costSnapshots.Count; i++)
-        {
+//    public bool ValidateQueryResponseSchema(Response<QueryResult> queryResult)
+//    {
+//        var columns = queryResult.Value.Columns;
 
-            preTaxTotal += costSnapshots[i].PreTaxCost;
-            total += costSnapshots[i].TotalCost;
-        }
+//        foreach (var schema in Enum.GetValues<QueryResultSchema>())
+//        {
+//            if (!(columns[(int)schema].Name == schema.ToString()))
+//            {
+//                _logger.LogError("Schema validation failed, " +
+//                    "Column Name {0} at index {1} did not match {2}",
+//                    columns[(int)schema].Name,
+//                    (int)schema,
+//                    schema.ToString());
 
-        AveragePreTaxCost = preTaxTotal / (costSnapshots.Count);
-        AverageTotalCost = total / (costSnapshots.Count);
+//                return false;
+//            }
+//        }
 
-        AveragePreTaxCost = Math.Round(AveragePreTaxCost, 2);
-        AverageTotalCost = Math.Round(AverageTotalCost, 2);
-    }
-}
+//        return true;
+//    }
+
+//    public void CalculateAverageCost()
+//    {
+//        double preTaxTotal = default;
+//        double total = default;
+
+//        for (var i = 0; i < CostSnapshots.Count; i++)
+//        {
+
+//            preTaxTotal += CostSnapshots[i].PreTaxCostUSD;
+//            total += CostSnapshots[i].CostUSD;
+//        }
+
+//        AveragePreTaxCost = preTaxTotal / (CostSnapshots.Count);
+//        AverageCost = total / (CostSnapshots.Count);
+
+//        AveragePreTaxCost = Math.Round(AveragePreTaxCost, 4);
+//        AverageCost = Math.Round(AverageCost, 4);
+//    }
+//}
